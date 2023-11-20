@@ -64,7 +64,7 @@ vec3 CalcPointLight(Material material, PointLight light, vec3 N, vec3 fragPos, v
 vec3 CalcSpotLight(Material material, SpotLight light, vec3 N, vec3 fragPos, vec3 V);
 vec3 CalcDirectLight(Material material, DirectionLight light, vec3 N, vec3 fragPos, vec3 V);
 
-vec3 spotPosition = vec3(0.0,-5.0,20.0);
+vec3 spotPosition = vec3(-1.0,-5.0,-30.0);
 
 void main()
 {

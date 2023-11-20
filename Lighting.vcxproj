@@ -140,8 +140,10 @@
     <ClInclude Include="basic_camera.h" />
     <ClInclude Include="camera.h" />
     <ClInclude Include="cube.h" />
+    <ClInclude Include="curve.h" />
     <ClInclude Include="pointLight.h" />
     <ClInclude Include="shader.h" />
+    <ClInclude Include="Sphere2.h" />
     <ClInclude Include="stb_image.h" />
   </ItemGroup>
   <ItemGroup>

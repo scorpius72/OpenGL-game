@@ -7,7 +7,7 @@
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-
+#include "Sphere2.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -22,7 +22,8 @@
 #include <chrono>   // for std::chrono
 #include <cstdint>  // for uint32_t
 #include <cstdlib>  // for rand
-
+#include <array>
+#include "curve.h"
 using namespace std;
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -37,9 +38,12 @@ unsigned int loadTexture(char const* path, GLenum textureWrappingModeS, GLenum t
 void roadDraw(Cube& road, Cube& footPath, Shader& lightingShaderWithTexture, glm::mat4 model);
 void buildingDraw(Cube* building, Shader& lightingShaderWithTexture, glm::mat4 alTogether);
 void lampDraw(Cube& lamp, Shader& lightingShaderWithTexture, glm::mat4 alTogether);
-void bikeDraw(unsigned int& circleVAO, unsigned int& toolVAO, unsigned int& bikeCircleVAO, unsigned int& cubeVAO, Shader& lightingShader, glm::mat4 alTogether);
+void bikeDraw(unsigned int& circleVAO, unsigned int& toolVAO, unsigned int& bikeCircleVAO, unsigned int& cubeVAO, Shader& lightingShader, Shader& lightingShaderWithTexture, glm::mat4 alTogether);
 void cubeMoving(unsigned int& circleVAO, Shader& lightingShader, glm::mat4 alTogether);
 void personDraw(unsigned int& circleVAO, unsigned int& toolVAO, unsigned int& bikeCircleVAO, unsigned int& cubeVAO, Shader& lightingShader, glm::mat4 alTogether);
+void bikeDrawEnemy(unsigned int& circleVAO, unsigned int& toolVAO, unsigned int& bikeCircleVAO, unsigned int& cubeVAO, Shader& lightingShader, Shader& lightingShaderWithTexture, glm::mat4 alTogether, int num);
+void shootTheBike(Shader& lightingShaderWithTexture, glm::mat4 alTogether);
+void fieldDraw(Shader& lightingShaderWithTexture, glm::mat4 alTogether);
 
 uint32_t GetMillis() {
     using namespace std::chrono;
@@ -50,6 +54,11 @@ uint32_t GetMillis() {
 int randomNumber(int l, int r) {
     r++;
     return rand() % (r - l) + l;
+}
+float randomFloat(int LO , int HI)
+{
+    float r3 = LO + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (HI - LO)));
+    return r3;
 }
 
 // settings
@@ -74,7 +83,11 @@ float bikeTranslate_x = 0.0f;
 float bikeTranslate_y = 0.0f;
 float bikeTranslate_z = 0.0f;
 float intoCurrent_z = 0.0f;
-
+float inc = 2.0f;
+float currentHuamanAngle = 0;
+float speed = 2.0f;
+float shootAngle = -200.0f;
+bool day = true;
 
 // camera
 Camera camera(glm::vec3(0.0f, -0.2f, 5.2f));
@@ -90,7 +103,7 @@ BasicCamera basic_camera(eyeX, eyeY, eyeZ, lookAtX, lookAtY, lookAtZ, V);
 // lights
 // positions of the point lights
 glm::vec3 pointLightPositions[] = {
-    glm::vec3(0.0f,  4.50f,  -4.0f), /// Spot
+    glm::vec3(0.0f,  4.50f,  -55.0f), /// Spot
     glm::vec3(-0.5f,  1.5f,  -5.0f),   /// Point
     glm::vec3(0.0f,  11.5f,  0.5f), /// Sun
     //glm::vec3(-1.5f,  -1.5f,  0.0f)
@@ -142,6 +155,7 @@ bool specularToggle = true;
 bool pointLightOn = true;
 bool personRide = true;
 bool IntroWaling = true;
+bool shoot = true;
 
 // timing
 float deltaTime = 0.0f;    // time between current frame and last frame
@@ -322,236 +336,236 @@ void bikecirclePointCreation(float* circle1)
 
 }
 
-class Curve
-{
-public:
-    vector<float> cntrlPoints;
-    vector <float> coordinates;
-    vector <float> normals;
-    vector <int> indices;
-    vector <float> vertices;
-    const double pi = 3.14159265389;
-    const int nt = 40;
-    const int ntheta = 20;
-    Curve(vector<float>& tmp)
-    {
-        this->cntrlPoints = tmp;
-        this->fishVAO = hollowBezier(cntrlPoints.data(), ((unsigned int)cntrlPoints.size() / 3) - 1);
-        /*cout << cntrlPoints.size() << endl;
-        cout << coordinates.size() << endl;
-        cout << normals.size() << endl;
-        cout << indices.size() << endl;
-        cout << vertices.size() << endl;*/
-    }
-    ~Curve()
-    {
-        glDeleteVertexArrays(1, &fishVAO);
-        glDeleteVertexArrays(1, &bezierVAO);
-        glDeleteBuffers(1, &bezierVBO);
-        glDeleteBuffers(1, &bezierEBO);
-    }
-    void draw(Shader& lightingShader, glm::mat4 model)
-    {
-        /// Fish
-        lightingShader.use();
-        lightingShader.setMat4("model", model);
-        lightingShader.setVec3("material.ambient", glm::vec3(1.0f, 0.5f, 0.0f));
-        lightingShader.setVec3("material.diffuse", glm::vec3(1.0f, 0.5f, 0.0f));
-        lightingShader.setVec3("material.specular", glm::vec3(1.0f, 1.0f, 1.0f));
-        lightingShader.setFloat("material.shininess", 32.0f);
-
-        glBindVertexArray(fishVAO);
-        glDrawElements(GL_TRIANGLES,                    // primitive type
-            (unsigned int)indices.size(),          // # of indices
-            GL_UNSIGNED_INT,                 // data type
-            (void*)0);                       // offset to indices
-
-        // unbind VAO
-        glBindVertexArray(0);
-        /// End Fish
-    }
-private:
-    unsigned int fishVAO;
-    unsigned int bezierVAO;
-    unsigned int bezierVBO;
-    unsigned int bezierEBO;
-
-
-    unsigned int drawControlPoints()
-    {
-        unsigned int controlPointVAO;
-        unsigned int controlPointVBO;
-
-        glGenVertexArrays(1, &controlPointVAO);
-        glGenBuffers(1, &controlPointVBO);
-
-        glBindVertexArray(controlPointVAO);
-
-        glBindBuffer(GL_ARRAY_BUFFER, controlPointVBO);
-        glBufferData(GL_ARRAY_BUFFER, (unsigned int)cntrlPoints.size() * sizeof(float), cntrlPoints.data(), GL_STATIC_DRAW);
-
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-        glEnableVertexAttribArray(0);
-
-        return controlPointVAO;
-    }
-
-    long long nCr(int n, int r)
-    {
-        if (r > n / 2)
-            r = n - r; // because C(n, r) == C(n, n - r)
-        long long ans = 1;
-        int i;
-
-        for (i = 1; i <= r; i++)
-        {
-            ans *= n - r + i;
-            ans /= i;
-        }
-
-        return ans;
-    }
-    void BezierCurve(double t, float xy[2], GLfloat ctrlpoints[], int L)
-    {
-        double y = 0;
-        double x = 0;
-        t = t > 1.0 ? 1.0 : t;
-        for (int i = 0; i < L + 1; i++)
-        {
-            long long ncr = nCr(L, i);
-            double oneMinusTpow = pow(1 - t, double(L - i));
-            double tPow = pow(t, double(i));
-            double coef = oneMinusTpow * tPow * ncr;
-            x += coef * ctrlpoints[i * 3];
-            y += coef * ctrlpoints[(i * 3) + 1];
-
-        }
-        xy[0] = float(x);
-        xy[1] = float(y);
-    }
-    unsigned int hollowBezier(GLfloat ctrlpoints[], int L)
-    {
-        int i, j;
-        float x, y, z, r;                //current coordinates
-        float theta;
-        float nx, ny, nz, lengthInv;    // vertex normal
-
-
-        const float dtheta = 2 * pi / ntheta;        //angular step size
-
-        float t = 0;
-        float dt = 1.0 / nt;
-        float xy[2];
-
-        for (i = 0; i <= nt; ++i)              //step through y
-        {
-            BezierCurve(t, xy, ctrlpoints, L);
-            r = xy[0];
-            y = xy[1];
-            theta = 0;
-            t += dt;
-            lengthInv = 1.0 / r;
-
-            for (j = 0; j <= ntheta; ++j)
-            {
-                double cosa = cos(theta);
-                double sina = sin(theta);
-                z = r * cosa;
-                x = r * sina;
-
-                coordinates.push_back(x);
-                coordinates.push_back(y);
-                coordinates.push_back(z);
-
-                // normalized vertex normal (nx, ny, nz)
-                // center point of the circle (0,y,0)
-                nx = (x - 0) * lengthInv;
-                ny = (y - y) * lengthInv;
-                nz = (z - 0) * lengthInv;
-
-                normals.push_back(nx);
-                normals.push_back(ny);
-                normals.push_back(nz);
-
-                theta += dtheta;
-            }
-        }
-        // generate index list of triangles
-        // k1--k1+1
-        // |  / |
-        // | /  |
-        // k2--k2+1
-
-        int k1, k2;
-        for (int i = 0; i < nt; ++i)
-        {
-            k1 = i * (ntheta + 1);     // beginning of current stack
-            k2 = k1 + ntheta + 1;      // beginning of next stack
-
-            for (int j = 0; j < ntheta; ++j, ++k1, ++k2)
-            {
-                // k1 => k2 => k1+1
-                indices.push_back(k1);
-                indices.push_back(k2);
-                indices.push_back(k1 + 1);
-
-                // k1+1 => k2 => k2+1
-                indices.push_back(k1 + 1);
-                indices.push_back(k2);
-                indices.push_back(k2 + 1);
-            }
-        }
-
-        size_t count = coordinates.size();
-        for (int i = 0; i < count; i += 3)
-        {
-            //cout << count << ' ' << i + 2 << endl;
-            vertices.push_back(coordinates[i]);
-            vertices.push_back(coordinates[i + 1]);
-            vertices.push_back(coordinates[i + 2]);
-
-            vertices.push_back(normals[i]);
-            vertices.push_back(normals[i + 1]);
-            vertices.push_back(normals[i + 2]);
-        }
-
-        glGenVertexArrays(1, &bezierVAO);
-        glBindVertexArray(bezierVAO);
-
-        // create VBO to copy vertex data to VBO
-        glGenBuffers(1, &bezierVBO);
-        glBindBuffer(GL_ARRAY_BUFFER, bezierVBO);           // for vertex data
-        glBufferData(GL_ARRAY_BUFFER,                   // target
-            (unsigned int)vertices.size() * sizeof(float), // data size, # of bytes
-            vertices.data(),   // ptr to vertex data
-            GL_STATIC_DRAW);                   // usage
-
-        // create EBO to copy index data
-        glGenBuffers(1, &bezierEBO);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bezierEBO);   // for index data
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER,           // target
-            (unsigned int)indices.size() * sizeof(unsigned int),             // data size, # of bytes
-            indices.data(),               // ptr to index data
-            GL_STATIC_DRAW);                   // usage
-
-        // activate attrib arrays
-        glEnableVertexAttribArray(0);
-        glEnableVertexAttribArray(1);
-
-        // set attrib arrays with stride and offset
-        int stride = 24;     // should be 24 bytes
-        glVertexAttribPointer(0, 3, GL_FLOAT, false, stride, (void*)0);
-        glVertexAttribPointer(1, 3, GL_FLOAT, false, stride, (void*)(sizeof(float) * 3));
-
-        // unbind VAO, VBO and EBO
-        glBindVertexArray(0);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
-        return bezierVAO;
-    }
-
-};
+//class Curve
+//{
+//public:
+//    vector<float> cntrlPoints;
+//    vector <float> coordinates;
+//    vector <float> normals;
+//    vector <int> indices;
+//    vector <float> vertices;
+//    const double pi = 3.14159265389;
+//    const int nt = 40;
+//    const int ntheta = 20;
+//    Curve(vector<float>& tmp)
+//    {
+//        this->cntrlPoints = tmp;
+//        this->fishVAO = hollowBezier(cntrlPoints.data(), ((unsigned int)cntrlPoints.size() / 3) - 1);
+//        /*cout << cntrlPoints.size() << endl;
+//        cout << coordinates.size() << endl;
+//        cout << normals.size() << endl;
+//        cout << indices.size() << endl;
+//        cout << vertices.size() << endl;*/
+//    }
+//    ~Curve()
+//    {
+//        glDeleteVertexArrays(1, &fishVAO);
+//        glDeleteVertexArrays(1, &bezierVAO);
+//        glDeleteBuffers(1, &bezierVBO);
+//        glDeleteBuffers(1, &bezierEBO);
+//    }
+//    void draw(Shader& lightingShader, glm::mat4 model)
+//    {
+//        /// Fish
+//        lightingShader.use();
+//        lightingShader.setMat4("model", model);
+//        lightingShader.setVec3("material.ambient", glm::vec3(1.0f, 0.5f, 0.0f));
+//        lightingShader.setVec3("material.diffuse", glm::vec3(1.0f, 0.5f, 0.0f));
+//        lightingShader.setVec3("material.specular", glm::vec3(1.0f, 1.0f, 1.0f));
+//        lightingShader.setFloat("material.shininess", 32.0f);
+//
+//        glBindVertexArray(fishVAO);
+//        glDrawElements(GL_TRIANGLES,                    // primitive type
+//            (unsigned int)indices.size(),          // # of indices
+//            GL_UNSIGNED_INT,                 // data type
+//            (void*)0);                       // offset to indices
+//
+//        // unbind VAO
+//        glBindVertexArray(0);
+//        /// End Fish
+//    }
+//private:
+//    unsigned int fishVAO;
+//    unsigned int bezierVAO;
+//    unsigned int bezierVBO;
+//    unsigned int bezierEBO;
+//
+//
+//    unsigned int drawControlPoints()
+//    {
+//        unsigned int controlPointVAO;
+//        unsigned int controlPointVBO;
+//
+//        glGenVertexArrays(1, &controlPointVAO);
+//        glGenBuffers(1, &controlPointVBO);
+//
+//        glBindVertexArray(controlPointVAO);
+//
+//        glBindBuffer(GL_ARRAY_BUFFER, controlPointVBO);
+//        glBufferData(GL_ARRAY_BUFFER, (unsigned int)cntrlPoints.size() * sizeof(float), cntrlPoints.data(), GL_STATIC_DRAW);
+//
+//        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+//        glEnableVertexAttribArray(0);
+//
+//        return controlPointVAO;
+//    }
+//
+//    long long nCr(int n, int r)
+//    {
+//        if (r > n / 2)
+//            r = n - r; // because C(n, r) == C(n, n - r)
+//        long long ans = 1;
+//        int i;
+//
+//        for (i = 1; i <= r; i++)
+//        {
+//            ans *= n - r + i;
+//            ans /= i;
+//        }
+//
+//        return ans;
+//    }
+//    void BezierCurve(double t, float xy[2], GLfloat ctrlpoints[], int L)
+//    {
+//        double y = 0;
+//        double x = 0;
+//        t = t > 1.0 ? 1.0 : t;
+//        for (int i = 0; i < L + 1; i++)
+//        {
+//            long long ncr = nCr(L, i);
+//            double oneMinusTpow = pow(1 - t, double(L - i));
+//            double tPow = pow(t, double(i));
+//            double coef = oneMinusTpow * tPow * ncr;
+//            x += coef * ctrlpoints[i * 3];
+//            y += coef * ctrlpoints[(i * 3) + 1];
+//
+//        }
+//        xy[0] = float(x);
+//        xy[1] = float(y);
+//    }
+//    unsigned int hollowBezier(GLfloat ctrlpoints[], int L)
+//    {
+//        int i, j;
+//        float x, y, z, r;                //current coordinates
+//        float theta;
+//        float nx, ny, nz, lengthInv;    // vertex normal
+//
+//
+//        const float dtheta = 2 * pi / ntheta;        //angular step size
+//
+//        float t = 0;
+//        float dt = 1.0 / nt;
+//        float xy[2];
+//
+//        for (i = 0; i <= nt; ++i)              //step through y
+//        {
+//            BezierCurve(t, xy, ctrlpoints, L);
+//            r = xy[0];
+//            y = xy[1];
+//            theta = 0;
+//            t += dt;
+//            lengthInv = 1.0 / r;
+//
+//            for (j = 0; j <= ntheta; ++j)
+//            {
+//                double cosa = cos(theta);
+//                double sina = sin(theta);
+//                z = r * cosa;
+//                x = r * sina;
+//
+//                coordinates.push_back(x);
+//                coordinates.push_back(y);
+//                coordinates.push_back(z);
+//
+//                // normalized vertex normal (nx, ny, nz)
+//                // center point of the circle (0,y,0)
+//                nx = (x - 0) * lengthInv;
+//                ny = (y - y) * lengthInv;
+//                nz = (z - 0) * lengthInv;
+//
+//                normals.push_back(nx);
+//                normals.push_back(ny);
+//                normals.push_back(nz);
+//
+//                theta += dtheta;
+//            }
+//        }
+//        // generate index list of triangles
+//        // k1--k1+1
+//        // |  / |
+//        // | /  |
+//        // k2--k2+1
+//
+//        int k1, k2;
+//        for (int i = 0; i < nt; ++i)
+//        {
+//            k1 = i * (ntheta + 1);     // beginning of current stack
+//            k2 = k1 + ntheta + 1;      // beginning of next stack
+//
+//            for (int j = 0; j < ntheta; ++j, ++k1, ++k2)
+//            {
+//                // k1 => k2 => k1+1
+//                indices.push_back(k1);
+//                indices.push_back(k2);
+//                indices.push_back(k1 + 1);
+//
+//                // k1+1 => k2 => k2+1
+//                indices.push_back(k1 + 1);
+//                indices.push_back(k2);
+//                indices.push_back(k2 + 1);
+//            }
+//        }
+//
+//        size_t count = coordinates.size();
+//        for (int i = 0; i < count; i += 3)
+//        {
+//            //cout << count << ' ' << i + 2 << endl;
+//            vertices.push_back(coordinates[i]);
+//            vertices.push_back(coordinates[i + 1]);
+//            vertices.push_back(coordinates[i + 2]);
+//
+//            vertices.push_back(normals[i]);
+//            vertices.push_back(normals[i + 1]);
+//            vertices.push_back(normals[i + 2]);
+//        }
+//
+//        glGenVertexArrays(1, &bezierVAO);
+//        glBindVertexArray(bezierVAO);
+//
+//        // create VBO to copy vertex data to VBO
+//        glGenBuffers(1, &bezierVBO);
+//        glBindBuffer(GL_ARRAY_BUFFER, bezierVBO);           // for vertex data
+//        glBufferData(GL_ARRAY_BUFFER,                   // target
+//            (unsigned int)vertices.size() * sizeof(float), // data size, # of bytes
+//            vertices.data(),   // ptr to vertex data
+//            GL_STATIC_DRAW);                   // usage
+//
+//        // create EBO to copy index data
+//        glGenBuffers(1, &bezierEBO);
+//        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bezierEBO);   // for index data
+//        glBufferData(GL_ELEMENT_ARRAY_BUFFER,           // target
+//            (unsigned int)indices.size() * sizeof(unsigned int),             // data size, # of bytes
+//            indices.data(),               // ptr to index data
+//            GL_STATIC_DRAW);                   // usage
+//
+//        // activate attrib arrays
+//        glEnableVertexAttribArray(0);
+//        glEnableVertexAttribArray(1);
+//
+//        // set attrib arrays with stride and offset
+//        int stride = 24;     // should be 24 bytes
+//        glVertexAttribPointer(0, 3, GL_FLOAT, false, stride, (void*)0);
+//        glVertexAttribPointer(1, 3, GL_FLOAT, false, stride, (void*)(sizeof(float) * 3));
+//
+//        // unbind VAO, VBO and EBO
+//        glBindVertexArray(0);
+//        glBindBuffer(GL_ARRAY_BUFFER, 0);
+//        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+//
+//        return bezierVAO;
+//    }
+//
+//};
 
 vector < float > lampPoint = {
 -0.1230, 2.1222, 5.1000,
@@ -559,7 +573,75 @@ vector < float > lampPoint = {
 -0.1933, 1.8726, 5.1000,
 -0.2460, 1.7047, 5.1000,
 };
-Curve* lampLight;
+vector < float > firePoint = {
+0.0000, 2.4924, 5.1000,
+-0.0088, 2.4235, 5.1000,
+-0.0264, 2.3934, 5.1000,
+-0.0410, 2.3461, 5.1000,
+-0.0469, 2.3073, 5.1000,
+-0.0644, 2.2514, 5.1000,
+-0.0673, 2.2212, 5.1000,
+-0.0849, 2.1782, 5.1000,
+-0.0849, 2.1308, 5.1000,
+-0.1025, 2.0878, 5.1000,
+-0.1171, 2.0491, 5.1000,
+-0.1259, 2.0146, 5.1000,
+-0.1376, 1.9888, 5.1000,
+-0.1464, 1.9630, 5.1000,
+-0.1611, 1.9329, 5.1000,
+-0.1728, 1.8812, 5.1000,
+-0.1816, 1.8468, 5.1000,
+-0.1933, 1.8166, 5.1000,
+-0.2050, 1.7779, 5.1000,
+-0.2108, 1.7478, 5.1000,
+-0.2196, 1.7090, 5.1000,
+-0.2284, 1.6488, 5.1000,
+-0.2372, 1.6316, 5.1000,
+-0.2489, 1.6057, 5.1000,
+-0.2635, 1.5670, 5.1000,
+-0.2723, 1.5455, 5.1000,
+-0.2753, 1.5154, 5.1000,
+-0.2782, 1.5024, 5.1000,
+-0.2958, 1.4723, 5.1000,
+-0.2958, 1.4637, 5.1000,
+-0.3045, 1.4293, 5.1000,
+-0.3163, 1.3905, 5.1000,
+};
+std::vector<float> tree_head_point = {
+    -0.0050, 2.5650, 5.1000,
+-0.2250, 2.4400, 5.1000,
+-0.6300, 2.3150, 5.1000,
+-0.9750, 2.1900, 5.1000,
+-1.3150, 1.9650, 5.1000,
+-1.1650, 1.8850, 5.1000,
+-0.9550, 1.8900, 5.1000,
+-0.5800, 1.8900, 5.1000,
+-0.1550, 1.8700, 5.1000,
+-0.0600, 1.8300, 5.1000,
+-0.4650, 1.5600, 5.1000,
+-0.8200, 1.4200, 5.1000,
+-1.2250, 1.2050, 5.1000,
+-1.5500, 0.9450, 5.1000,
+-1.6750, 0.7250, 5.1000,
+-1.7050, 0.5350, 5.1000,
+-1.6850, 0.4050, 5.1000,
+-1.4500, 0.3000, 5.1000,
+-1.2300, 0.3000, 5.1000,
+-0.8050, 0.3000, 5.1000,
+};
+vector < float > tree_body_point{
+-0.1288, 2.1653, 5.1000,
+-0.1230, 1.9458, 5.1000,
+-0.1728, 1.7607, 5.1000,
+-0.1991, 1.5498, 5.1000,
+-0.1025, 1.4551, 5.1000,
+-0.1054, 1.1839, 5.1000,
+-0.1962, 1.0204, 5.1000,
+-0.1083, 0.8095, 5.1000,
+-0.2196, 0.6158, 5.1000,
+-0.3250, 0.4824, 5.1000,
+};
+Curve* lampLight , *fire , *tree_head , *tree_body;
 
 int ind = 0;
 
@@ -571,10 +653,11 @@ struct buildingPro {
 };
 
 vector < buildingPro > buildingPoints1 , buildingPoints2;
+vector < array < float, 6 > > enemyInfo;
 void setBuildingPoints()
 {
     float st = 0.0f;
-    while (st<600.0f)
+    while (st<350.0f)
     {
         float z = randomNumber(4, 5);
         st += z + 0.5f;
@@ -594,7 +677,7 @@ void setBuildingPoints()
     }*/
 
     st = 0.0f;
-    while (st < 600.0f)
+    while (st < 350.0f)
     {
         float z = randomNumber(4, 5);
         st += z + 0.5f;
@@ -609,9 +692,42 @@ void setBuildingPoints()
 
     }
 }
+void setEnemyInfo() {
+    float x = -3.42;
+    array< float, 6 > a;
+    for (int i = 0; i < 6; i++) {
+        a[0] = x;
+        a[1] = 0.0f; // z pos
+        a[2] = randomFloat(3, 10);
+        a[3] = randomFloat(0 , 1);
+        a[4] = randomFloat(0 , 1);
+        a[5] = randomFloat(0 , 1);
+        x += 0.5;
+        enemyInfo.push_back(a);
+    }
+    
+}
+// this is for stick
+Cube* stick , *field;
+Sphere2* head_sphare , *day_sphare;
+
+vector < pair<int,int> > tree_pos;
+
 int main()
 {
 
+    for (int i = 0; i < 200; i++) {
+        pair<float, float> tmp;
+        tmp.first = randomNumber(0, 30);
+        tmp.second = -randomNumber(10, 350);
+        tree_pos.push_back(tmp);
+    }
+
+    // set enemy info
+    setEnemyInfo();
+   /* for (auto i : enemyInfo) {
+        cout << i[2] << endl;
+    }*/
     srand(GetMillis());
 
     // glfw: initialize and configure
@@ -1034,12 +1150,91 @@ int main()
     unsigned int specMaplamp = loadTexture(specularMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
     Cube lamp = Cube(diffMaplamp, specMaplamp, 32.0f, 0.0f, 0.0f, 1.0f, 1.0f);
 
-    Curve lampShape(lampPoint);
+    diffuseMapPathroad = "Texture_img/lamp_light.png";
+    specularMapPathroad = "Texture_img/lamp_light.png";
+    unsigned int diffMaplamp_light = loadTexture(diffuseMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+    unsigned int specMaplamp_light = loadTexture(specularMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+    Cube lamp_light = Cube(diffMaplamp_light, specMaplamp_light, 32.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+
+    // this is for head section
+    diffuseMapPathroad = "Texture_img/head.png";
+    specularMapPathroad = "Texture_img/head.png";
+    unsigned int diffMaphead = loadTexture(diffuseMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+    unsigned int specMaphead = loadTexture(specularMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+    Cube head_cube = Cube(diffMaphead, specMaphead, 32.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+    Sphere2  head_sphare_tmp = Sphere2(6.0f, 144, 72, glm::vec3(0.898f, 0.459f, 0.125f), glm::vec3(0.898f, 0.459f, 0.125f), glm::vec3(0.5f, 0.5f, 0.5f), 32.0f, diffMaphead, specMaphead, 0.0f, 0.0f, 1.0f, 1.0f);
+    head_sphare = &head_sphare_tmp;
+
+    // this is for day -----
+    diffuseMapPathroad = "Texture_img/day.png";
+    specularMapPathroad = "Texture_img/day.png";
+    unsigned int diffMapday = loadTexture(diffuseMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+    unsigned int specMapday = loadTexture(specularMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+    Sphere2  day_sphare_tmp = Sphere2(6.0f, 144, 72, glm::vec3(0.898f, 0.459f, 0.125f), glm::vec3(0.898f, 0.459f, 0.125f), glm::vec3(0.5f, 0.5f, 0.5f), 32.0f, diffMapday, specMapday, 0.0f, 0.0f, 1.0f, 1.0f);
+    day_sphare = &day_sphare_tmp;
+
+    // this is for stick image
+    diffuseMapPathroad = "Texture_img/stick.png";
+    specularMapPathroad = "Texture_img/stick.png";
+    unsigned int diffMapstick = loadTexture(diffuseMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+    unsigned int specMapstick = loadTexture(specularMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+    Cube stick1 = Cube(diffMapstick, specMapstick, 32.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+    stick = &stick1;
+
+    Curve lampShape(lampPoint,diffMaplamp_light, specMaplamp_light,20);
     lampLight = &lampShape;
-    //Sphere sphere = Sphere();
+
+    // this section is for fire
+    diffuseMapPathroad = "Texture_img/fire.png";
+    specularMapPathroad = "Texture_img/fire.png";
+    unsigned int diffMapfire = loadTexture(diffuseMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+    unsigned int specMapfire = loadTexture(specularMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+
+    Curve fireShape(lampPoint, diffMapfire, specMapfire, 20);
+    fire = &fireShape;
+
+    // this is for tree head
+    diffuseMapPathroad = "Texture_img/tree_head.png";
+    specularMapPathroad = "Texture_img/tree_head.png";
+    unsigned int diffMaptree = loadTexture(diffuseMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+    unsigned int specMaptree = loadTexture(specularMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+
+    Curve treeShape(tree_head_point, diffMaptree, specMaptree, 20);
+    tree_head = &treeShape;
+
+    // this is for tree body
+    diffuseMapPathroad = "Texture_img/tree_body.png";
+    specularMapPathroad = "Texture_img/tree_body.png";
+    unsigned int diffMaptree_body = loadTexture(diffuseMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+    unsigned int specMaptree_body = loadTexture(specularMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+
+    Curve treeShape_body(tree_body_point, diffMaptree_body, specMaptree_body, 20);
+    tree_body = &treeShape_body;
+
+
+    // this is for field
+    diffuseMapPathroad = "Texture_img/field.png";
+    specularMapPathroad = "Texture_img/field.png";
+    unsigned int diffMapfield = loadTexture(diffuseMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+    unsigned int specMapfield = loadTexture(specularMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+    Cube field1 = Cube(diffMapfield, specMapfield, 32.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+    field = &field1;
+
+
+
+
+
+    // testing purpose -----------------------------
+    //camera.ProcessKeyboard(FORWARD, 700);
+
+
+
+
+
+
 
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
+    //Sphere2 head = Sphere2();
 
     // render loop
     // -----------
@@ -1057,7 +1252,12 @@ int main()
 
         // render
         // ------
-        glClearColor(0.529f, 0.8078f, 0.9215f, 1.0f);
+
+        if (day)
+            glClearColor(0.7294117647f, 0.99215686274f, 1.0f, 1.0f);
+        else glClearColor(0.18039215686f, 0.26666666666f, 0.50980392156f, 1.0f);
+
+
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // be sure to activate shader when setting uniforms/drawing objects
@@ -1096,10 +1296,21 @@ int main()
         pointlight2.setUpPointLight(lightingShaderWithTexture);
         // point light 3
         pointlight3.setUpPointLight(lightingShaderWithTexture);
+
+
+        // -------------------- this part is for testing ---------------   
+      /*  roadDraw(road, footPath, lightingShaderWithTexture, model);
+        buildingDraw(building, lightingShaderWithTexture, model);
+        lampDraw(lamp, lightingShaderWithTexture, model);*/
+        
+        
+
+        //  ------------------------------------  main part start form here ----------------------
        
         roadDraw(road, footPath, lightingShaderWithTexture, model);
         buildingDraw(building, lightingShaderWithTexture, model);
         lampDraw(lamp, lightingShaderWithTexture, model);
+        
         
 
         // --------------------- this part is for bike --------------------------------------//
@@ -1115,14 +1326,32 @@ int main()
         if (false) {
             bikeTranslate_x = 0.0; bikeTranslate_y = 0.0; bikeTranslate_z = 0.0f;
 
-            if (intoCurrent_z < -15.0f) {
-                camera.ProcessKeyboard(BACKWARD, -intoCurrent_z/2.5);
+            if (intoCurrent_z < -20.0f) {
+                camera.ProcessKeyboard(BACKWARD, -intoCurrent_z/speed);
                 IntroWaling = false;
+                speed = 3.5f;
+                personRide = 1;
             }
             else {
-                camera.ProcessKeyboard(FORWARD, deltaTime);
-                intoCurrent_z -= deltaTime * 2.5;
 
+                personRide = 0;
+
+                model = glm::mat4(1.0);
+                translateMatrix = glm::translate(model, glm::vec3( 0.0f, - 2.5f, - 35.0f));
+                //cout << bikeTranslate_z << endl;
+                rotateXMatrix = glm::rotate(identityMatrix, glm::radians(00.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+                rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+                scaleMatrix = glm::scale(identityMatrix, glm::vec3(2, 2, 2));
+                model = translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+                //cubeMoving(cubeVAO, lightingShader, model);
+                bikeDraw(circleVAO, toolVAO, bikeCircleVAO, cubeVAO, lightingShader, lightingShaderWithTexture, model);
+
+                camera.ProcessKeyboard(FORWARD, deltaTime);
+                intoCurrent_z -= deltaTime * speed;
+
+               
                 model = glm::mat4(1.0);
                 translateMatrix = glm::translate(model, glm::vec3(-4.0f, -4.0f, -10.0f + intoCurrent_z));
                 //cout << bikeTranslate_x << endl;
@@ -1138,21 +1367,89 @@ int main()
 
         }
         else {
+
+            // this is for shooting
+            if (!shoot) {
+                model = glm::mat4(1.0);
+                translateMatrix = glm::translate(model, glm::vec3(bikeTranslate_x, -0.7f, bikeTranslate_z));
+                //cout << bikeTranslate_z << endl;
+                rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+                rotateYMatrix = glm::rotate(identityMatrix, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+                scaleMatrix = glm::scale(identityMatrix, glm::vec3(1, 1, 1));
+                model = translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+                shootTheBike(lightingShaderWithTexture, model);
+            }
+            
+
+        //    // this is for speed control of the bike
+
+            camera.ProcessKeyboard(FORWARD, deltaTime * speed);
+            bikeTranslate_z -= deltaTime * speed;
+
             model = glm::mat4(1.0);
-            translateMatrix = glm::translate(model, glm::vec3(bikeTranslate_x - 3.0f, bikeTranslate_y - 1.5f, bikeTranslate_z - 3.0f));
-            //cout << bikeTranslate_x << endl;
+            translateMatrix = glm::translate(model, glm::vec3(bikeTranslate_x - 2.0f, bikeTranslate_y - 1.5f, bikeTranslate_z - 3.0f));
+            //cout << bikeTranslate_z << endl;
             rotateXMatrix = glm::rotate(identityMatrix, glm::radians(00.0f), glm::vec3(1.0f, 0.0f, 0.0f));
             rotateYMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
             rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-            scaleMatrix = glm::scale(identityMatrix, glm::vec3(1.5, 1.5, 1.5));
+            scaleMatrix = glm::scale(identityMatrix, glm::vec3(1, 1, 1));
             model = translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
 
             //cubeMoving(cubeVAO, lightingShader, model);
-            bikeDraw(circleVAO, toolVAO, bikeCircleVAO, cubeVAO, lightingShader, view * model);
-        }
-        
-        
+            bikeDraw(circleVAO, toolVAO, bikeCircleVAO, cubeVAO, lightingShader, lightingShaderWithTexture, model);
 
+            // this is for enemy vehicle
+            int ccc = 0;
+            for (auto &i : enemyInfo) {
+                
+                if (i[2] == 0.0) {
+                    //cout << bikeTranslate_x << " "<< i[0] << endl;
+                    if (i[0]<-1.93)
+                        i[0] = -4.0;
+                    else i[0] = -3.43 + 6*.5 + 0.5f;
+                    //i[1] -= 5.0f;
+                }
+                i[1] -= i[2] * deltaTime;
+                //cout << i[1] << endl;
+                model = glm::mat4(1.0);
+                translateMatrix = glm::translate(model, glm::vec3(i[0], - 1.5f, i[1] - 3.0f));
+                //cout << bikeTranslate_z << endl;
+                rotateXMatrix = glm::rotate(identityMatrix, glm::radians(00.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+                rotateYMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+                scaleMatrix = glm::scale(identityMatrix, glm::vec3(1, 1, 1));
+                model = translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+                //cubeMoving(cubeVAO, lightingShader, model);
+                bikeDrawEnemy(circleVAO, toolVAO, bikeCircleVAO, cubeVAO, lightingShader, lightingShaderWithTexture, model , ccc++);
+            }
+           
+        }
+           
+            translateMatrix = glm::translate(identityMatrix, glm::vec3(0.0f, 0.0f, -350.0f));
+            rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+            rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+            scaleMatrix = glm::scale(identityMatrix, glm::vec3(1.0f, 1.0f, 1.0f));
+            model = translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+            fieldDraw(lightingShaderWithTexture, model);
+
+            translateMatrix = glm::translate(identityMatrix, glm::vec3(0.0f, 0.0f, -700.0f));
+            rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+            rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+            scaleMatrix = glm::scale(identityMatrix, glm::vec3(1.0f, 1.0f, 1.0f));
+            model = translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+            buildingDraw(building, lightingShaderWithTexture, model);
+            lampDraw(lamp, lightingShaderWithTexture, model);
+
+        // -------------------------  main function call part end here ---------------------------------
+        
+    
         //drawCube(cubeVAO, lightingShader, model);
         /*drawCircle(circleVAO , toolVAO, lightingShader, model , true);
         drawBikeCircle(bikeCircleVAO, lightingShader, model);*/
@@ -1187,15 +1484,82 @@ int main()
     return 0;
 }
 
+void fieldDraw(Shader& lightingShaderWithTexture, glm::mat4 alTogether)
+{
+    lightingShaderWithTexture.use();
+    glm::mat4 modelMatrixForContainer = glm::mat4(1.0f);
+    glm::mat4 model = glm::mat4(1.0f);
+    glm::mat4 translate = glm::mat4(1.0f);
+    glm::mat4 scale = glm::mat4(1.0f);
+
+    for (int i = 0; i < 35; i++) {
+        for (int j = 0; j < 5; j++) {
+            translate = glm::translate(model, glm::vec3(-6.0 - (j)*10, -5, -10.0f - float(i*10)));
+            scale = glm::scale(model, glm::vec3(10, 0.1, 10));
+            modelMatrixForContainer = alTogether * model * translate * scale;
+            field->drawCubeWithTexture(lightingShaderWithTexture, modelMatrixForContainer);
+        }
+    }
+
+    for (int i = 0; i < 35; i++) {
+        for (int j = 0; j < 5; j++) {
+            translate = glm::translate(model, glm::vec3(6.0 + (j) * 10, -5, -10.0f - float(i * 10)));
+            scale = glm::scale(model, glm::vec3(10, 0.1, 10));
+            modelMatrixForContainer = alTogether * model * translate * scale;
+            field->drawCubeWithTexture(lightingShaderWithTexture, modelMatrixForContainer);
+        }
+    }
+
+    for (int i = 0; i < 200; i++) {
+        if (i%2==0) {
+            translate = glm::translate(model, glm::vec3(-10 - tree_pos[i].first, -1.5, tree_pos[i].second));
+            scale = glm::scale(model, glm::vec3(1.2, 1.2, 1.2));
+            modelMatrixForContainer = alTogether * model * translate * scale;
+            tree_head->draw(lightingShaderWithTexture, modelMatrixForContainer, glm::vec3(0.7, 0.7, 0.7));
+
+            translate = glm::translate(model, glm::vec3(-10 - tree_pos[i].first, -5.5, tree_pos[i].second));
+            scale = glm::scale(model, glm::vec3(2, 2, 2));
+            modelMatrixForContainer = alTogether * model * translate * scale;
+            tree_body->draw(lightingShaderWithTexture, modelMatrixForContainer, glm::vec3(0.7, 0.7, 0.7));
+        }
+        else {
+            translate = glm::translate(model, glm::vec3(10 + tree_pos[i].first, -1.5, tree_pos[i].second));
+            scale = glm::scale(model, glm::vec3(1.2, 1.2, 1.2));
+            modelMatrixForContainer = alTogether * model * translate * scale;
+            tree_head->draw(lightingShaderWithTexture, modelMatrixForContainer, glm::vec3(0.7, 0.7, 0.7));
+
+            translate = glm::translate(model, glm::vec3(10 + tree_pos[i].first, -5.5, tree_pos[i].second));
+            scale = glm::scale(model, glm::vec3(2, 2, 2));
+            modelMatrixForContainer = alTogether * model * translate * scale;
+            tree_body->draw(lightingShaderWithTexture, modelMatrixForContainer, glm::vec3(0.7, 0.7, 0.7));
+        }
+    }
+
+    
+    
+   /* translate = glm::translate(model, glm::vec3(-6.0, -5, -10.0f));
+    scale = glm::scale(model, glm::vec3(-10, 0.1, -10));
+    modelMatrixForContainer = alTogether * model * translate * scale;
+    field->drawCubeWithTexture(lightingShaderWithTexture, modelMatrixForContainer);*/
+    
+}
+
 void personDraw(unsigned int& circleVAO, unsigned int& toolVAO, unsigned int& bikeCircleVAO, unsigned int& cubeVAO, Shader& lightingShader, glm::mat4 alTogether)
 {
+
+
+
+    if (currentHuamanAngle > 60) inc = -2.0f;
+    else if (currentHuamanAngle < -60) inc = 2.0f;
+    currentHuamanAngle += inc;
+
     glm::mat4 identityMatrix = glm::mat4(1.0f); // make sure to initialize matrix to identity matrix first
     glm::mat4 translateMatrix, rotateXMatrix, rotateYMatrix, rotateZMatrix, scaleMatrix, model;
 
     translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.53f, 0.17f, 2.06f));
     rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(-currentHuamanAngle/3), glm::vec3(0.0f, 0.0f, 1.0f));
     scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 1.3, 0.1));
     model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
 
@@ -1204,7 +1568,7 @@ void personDraw(unsigned int& circleVAO, unsigned int& toolVAO, unsigned int& bi
     translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.53f, 0.17f, 1.9f));
     rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(currentHuamanAngle/3), glm::vec3(0.0f, 0.0f, 1.0f));
     scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 1.3, 0.1));
     model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
 
@@ -1221,12 +1585,19 @@ void personDraw(unsigned int& circleVAO, unsigned int& toolVAO, unsigned int& bi
 
     drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.21f, 0.22f, 0.23f);
 
+    // ---------------------------------- this is the head part
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.50f, 0.63f, 1.98f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(.02, 0.02, 0.02));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+    head_sphare->drawSphereWithTexture(lightingShader, model);
+    
+
     //  - ---------------------------- this is the leg part -------------------------------
 
     translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.53f, -0.09f, 2.06f));
     rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(-currentHuamanAngle), glm::vec3(0.0f, 0.0f, 1.0f));
     scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 1.5, 0.1));
     model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
 
@@ -1235,7 +1606,7 @@ void personDraw(unsigned int& circleVAO, unsigned int& toolVAO, unsigned int& bi
     translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.53f, -0.09f, 1.9f));
     rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(currentHuamanAngle), glm::vec3(0.0f, 0.0f, 1.0f));
     scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 1.5, 0.1));
     model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
 
@@ -1246,7 +1617,7 @@ void personDraw(unsigned int& circleVAO, unsigned int& toolVAO, unsigned int& bi
     translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.56f, 0.58f, 1.9f));
     rotateXMatrix = glm::rotate(identityMatrix, glm::radians(40.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(currentHuamanAngle), glm::vec3(0.0f, 0.0f, 1.0f));
     scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 2.0, 0.1));
     model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
 
@@ -1255,7 +1626,7 @@ void personDraw(unsigned int& circleVAO, unsigned int& toolVAO, unsigned int& bi
     translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.56f, 0.58f, 2.05f));
     rotateXMatrix = glm::rotate(identityMatrix, glm::radians(-40.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(-currentHuamanAngle), glm::vec3(0.0f, 0.0f, 1.0f));
     scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 2.0, 0.1));
     model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
 
@@ -1287,7 +1658,7 @@ void roadDraw(Cube &road, Cube &footPath, Shader& lightingShaderWithTexture, glm
     glm::mat4 scale = glm::mat4(1.0f);
 
     float st = 0.0f;
-    for (int i = 0; i < 25; i++) {
+    for (int i = 0; i < 20; i++) {
         translate = glm::translate(model, glm::vec3(-5.0, -5.0, st));
         scale = glm::scale(model, glm::vec3(10, 0.2, -50));
         modelMatrixForContainer = alTogether * model * translate * scale;
@@ -1295,7 +1666,7 @@ void roadDraw(Cube &road, Cube &footPath, Shader& lightingShaderWithTexture, glm
         st -= 50.0f;
     }
     st = 0.0f;
-    for (int i = 0; i < 250; i++) {
+    for (int i = 0; i < 200; i++) {
         translate = glm::translate(model, glm::vec3(-7.0, -5.0, st));
         scale = glm::scale(model, glm::vec3(2, 0.5, -5));
         modelMatrixForContainer = alTogether * model * translate * scale;
@@ -1348,7 +1719,7 @@ void lampDraw(Cube& lamp, Shader& lightingShaderWithTexture, glm::mat4 alTogethe
     glm::mat4 scale = glm::mat4(1.0f);
 
     float st = 0.0f;
-    for (int i = 0; i < 25; i++) {
+    for (int i = 0; i < 7; i++) {
         translate = glm::translate(model, glm::vec3(-5.0, -5.0, st));
         scale = glm::scale(model, glm::vec3(0.2, 5, -0.2));
         modelMatrixForContainer = alTogether * model * translate * scale;
@@ -1362,7 +1733,7 @@ void lampDraw(Cube& lamp, Shader& lightingShaderWithTexture, glm::mat4 alTogethe
         translate = glm::translate(model, glm::vec3(-4.0, -2.6, st));
         scale = glm::scale(model, glm::vec3(1.0, 1.3, -0.2));
         modelMatrixForContainer = alTogether * model * translate * scale;
-        lampLight->draw(lightingShaderWithTexture, modelMatrixForContainer);
+        lampLight->draw(lightingShaderWithTexture, modelMatrixForContainer, glm::vec3(1.0f,0.0f,0.0f));
 
         translate = glm::translate(model, glm::vec3(4.8, -5.0, st));
         scale = glm::scale(model, glm::vec3(0.2, 5, -0.2));
@@ -1377,15 +1748,15 @@ void lampDraw(Cube& lamp, Shader& lightingShaderWithTexture, glm::mat4 alTogethe
         translate = glm::translate(model, glm::vec3(4.0, -2.6, st));
         scale = glm::scale(model, glm::vec3(1.0, 1.3, -0.2));
         modelMatrixForContainer = alTogether * model * translate * scale;
-        lampLight->draw(lightingShaderWithTexture, modelMatrixForContainer);
+        lampLight->draw(lightingShaderWithTexture, modelMatrixForContainer,  glm::vec3(1.0f, 0.0f, 0.0f));
 
         st -= 50.0f;
     }
 }
 
-void bikeDraw(unsigned int& circleVAO, unsigned int& toolVAO, unsigned int& bikeCircleVAO, unsigned int& cubeVAO, Shader& lightingShader, glm::mat4 alTogether)
+void bikeDraw(unsigned int& circleVAO, unsigned int& toolVAO, unsigned int& bikeCircleVAO, unsigned int& cubeVAO, Shader& lightingShader, Shader& lightingShaderWithTexture, glm::mat4 alTogether)
 {
-
+    lightingShader.use();
     /*glm::mat4 model = glm::mat4(1.0f);
     glm::mat4 translate = glm::mat4(1.0f);
     glm::mat4 translate2 = glm::mat4(1.0f);
@@ -1441,8 +1812,11 @@ void bikeDraw(unsigned int& circleVAO, unsigned int& toolVAO, unsigned int& bike
     drawBikeCircle(bikeCircleVAO, lightingShader, model, 0.1882f, 0.2f, 0.1921f);
     // first wheel end ----------------------------
 
-    // second wheel -----------------------------------
+    
 
+    // 
+    // second wheel -----------------------------------
+    
     translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.5f, -0.2, 2.0f));
     rotateXMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -1731,6 +2105,13 @@ void bikeDraw(unsigned int& circleVAO, unsigned int& toolVAO, unsigned int& bike
 
         drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.21f, 0.22f, 0.23f);
 
+        // ------------------------------  this is the head part -------------------------
+        lightingShaderWithTexture.use();
+        translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.50f, 0.63f, 1.98f));
+        scaleMatrix = glm::scale(identityMatrix, glm::vec3(.02, 0.02, 0.02));
+        model = alTogether*  translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+        head_sphare->drawSphereWithTexture(lightingShaderWithTexture, model);
+        lightingShader.use();
         //  - ---------------------------- this is the leg part -------------------------------
         translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.27f, 0.15f, 2.06f));
         rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
@@ -1772,6 +2153,448 @@ void bikeDraw(unsigned int& circleVAO, unsigned int& toolVAO, unsigned int& bike
 }
 
 
+void bikeDrawEnemy(unsigned int& circleVAO, unsigned int& toolVAO, unsigned int& bikeCircleVAO, unsigned int& cubeVAO, Shader& lightingShader, Shader& lightingShaderWithTexture, glm::mat4 alTogether , int num)
+{
+
+    /*glm::mat4 model = glm::mat4(1.0f);
+    glm::mat4 translate = glm::mat4(1.0f);
+    glm::mat4 translate2 = glm::mat4(1.0f);
+    glm::mat4 scale = glm::mat4(1.0f);*/
+
+
+
+    /*translate = glm::translate(model, glm::vec3(-translate_X, -translate_Y + 0.2, -translate_Z));
+    scale = glm::scale(model, glm::vec3(0.5, 0.5, 0.5));
+    model = translate * scale;*/
+
+    // ----------------------------------- first wheel -------------------------------//
+    // first circle
+    glm::mat4 identityMatrix = glm::mat4(1.0f); // make sure to initialize matrix to identity matrix first
+    glm::mat4 translateMatrix, rotateXMatrix, rotateYMatrix, rotateZMatrix, scaleMatrix, model;
+
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(0.5f, -0.2, 2.0f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.3, 0.3, 0.3));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.1882f, 0.2f, 0.1921f);
+
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(0.5f, -0.2, 2.0f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.3, 0.3, 0.3));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+    drawBikeCircle(bikeCircleVAO, lightingShader, model, 0.1882f, 0.2f, 0.1921f);
+
+    // inner circle 
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(0.5f, -0.2, 2.0f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 0.1, 0.1));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.1882f, 0.2f, 0.1921f);
+
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(0.5f, -0.2, 2.0f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 0.1, 0.1));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+    drawBikeCircle(bikeCircleVAO, lightingShader, model, 0.1882f, 0.2f, 0.1921f);
+    // first wheel end ----------------------------
+
+
+    // second wheel -----------------------------------
+
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.5f, -0.2, 2.0f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.3, 0.3, 0.3));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.1882f, 0.2f, 0.1921f);
+
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.5f, -0.2, 2.0f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.3, 0.3, 0.3));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+    drawBikeCircle(bikeCircleVAO, lightingShader, model, 0.1882f, 0.2f, 0.1921f);
+
+    // inner circle 
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.5f, -0.2, 2.0f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 0.1, 0.1));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.1882f, 0.2f, 0.1921f);
+
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.5f, -0.2, 2.0f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 0.1, 0.1));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+    drawBikeCircle(bikeCircleVAO, lightingShader, model, 0.1882f, 0.2f, 0.1921f);
+
+    // -------------------- forward circle green -------------------------------------
+    // inner circle 
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.24f, -0.2, 2.0f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 0.1, 0.1));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.0f, 0.5019f, 0.0f);
+
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.24f, -0.2, 2.0f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 0.1, 0.1));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+    drawBikeCircle(bikeCircleVAO, lightingShader, model, 0.0f, 0.5019f, 0.0f);
+
+    // second wheel ------------------------------------------ end
+
+    // stand part start from here --------------------------- 
+
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.2f, 0.5, 2.02f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(45.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.02, 5.0, 0.02));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 1.0f, 0.0f, 0.0f);
+
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.2f, 0.5, 1.93f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(45.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.02, 5.0, 0.02));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 1.0f, 0.0f, 0.0f);
+
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.25f, -0.2, 2.02f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(125.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.02, 2.7, 0.02));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 1.0f, 0.0f, 0.0f);
+
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.25f, -0.2, 1.93f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(125.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.02, 2.7, 0.02));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 1.0f, 0.0f, 0.0f);
+
+    // second wheel red rod
+
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.52f, -0.2, 1.93f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.02, 1.4, 0.02));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 1.0f, 0.0f, 0.0f);
+
+    // second wheel green rods
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.52f, -0.2, 1.93f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(100.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.02, 1.4, 0.02));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.0f, 0.5019f, 0.0f);
+
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.52f, -0.2, 1.93f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(80.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.02, 1.4, 0.02));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.0f, 0.5019f, 0.0f);
+
+    // last two red rod -------------------------------------------- 
+
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.48f, 0.14, 1.93f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(35.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.02, 2.0, 0.02));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 1.0f, 0.0f, 0.0f);
+
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.52f, -0.2, 1.93f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(145.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.02, 2.0, 0.02));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 1.0f, 0.0f, 0.0f);
+
+    // red stand ends here -----------------------------------------
+
+    // bike body parts start from here -----------------------------
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(0.0f, -0.00, 2.06f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(135.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 1.3, 0.1));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.47f, 0.47f, 0.471f);
+
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(0.0f, -0.00, 1.88f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(135.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 1.3, 0.1));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.47f, 0.47f, 0.471f);
+
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.1f, 0.15f, 2.06f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(135.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 1.0, 0.1));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.47f, 0.47f, 0.471f);
+
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.1f, 0.15f, 1.88f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(135.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 1.0, 0.1));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.47f, 0.47f, 0.471f);
+
+    // body upper part -------------------------------------
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.3f, 0.0f, 1.95f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 1.4, 0.1));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+    
+
+
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.47f, 0.47f, 0.471f);
+
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.35f, 0.103f, 1.95f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 1.4, 0.1));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.40f, 0.40f, 0.30f);
+
+    // last gass pipe
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.72f, -0.2f, 2.06f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.08, 1.2, 0.08));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.401f, 0.402f, 0.426f);
+
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.72f, -0.2f, 1.90f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.08, 1.2, 0.08));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.401f, 0.402f, 0.426f);
+
+    // head light
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.15f, 0.45f, 1.95f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 0.4, 0.1));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+
+    drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.6f, 0.5f, 0.6f);
+
+    // seat --------------------------------
+    translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.5f, 0.125f, 1.9f));
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 0.01, 0.1));
+    model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+    drawCube(cubeVAO, lightingShader, model, 0.3, 0.3, 0.3);
+
+
+    // ---------------------- this section is for person -------------------------------------
+    if (personRide) {
+
+        translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.53f, 0.17f, 2.06f));
+        rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        rotateZMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 1.3, 0.1));
+        model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+        drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.41f, 0.432f, 0.4023f);
+
+        translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.53f, 0.17f, 1.9f));
+        rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        rotateZMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 1.3, 0.1));
+        model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+        drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.41f, 0.432f, 0.4023f);
+
+        // ---------------------------------this is the body part
+
+        translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.50f, 0.53f, 1.98f));
+        rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.26, 1.7, 0.26));
+        model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+        drawCircle(circleVAO, toolVAO, lightingShader, model, false, enemyInfo[num][3], enemyInfo[num][4], enemyInfo[num][5]);
+        
+        // ---------------------------------- this is for the fire --------------
+        if (enemyInfo[num][2] == 0.0) {
+            lightingShaderWithTexture.use();
+
+            translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.50f, -2.5, 1.98f));
+            rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+            rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+            scaleMatrix = glm::scale(identityMatrix, glm::vec3(1.0, 1.5, 1.0));
+            model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+            //drawBikeCircle(bikeCircleVAO, lightingShader, model, 0.1882f, 0.2f, 0.1921f);
+            //day_sphare->drawSphereWithTexture(lightingShaderWithTexture, model);
+            fire->draw(lightingShaderWithTexture, model, glm::vec3(1.0f, 0.0f, 0.0f));
+
+            lightingShader.use();
+        }
+        
+        
+        // -------- this is the head part
+        translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.50f, 0.63f, 1.98f));
+        scaleMatrix = glm::scale(identityMatrix, glm::vec3(.02, 0.02, 0.02));
+        model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+        head_sphare->drawSphereWithTexture(lightingShader, model);
+
+        //  - ---------------------------- this is the leg part -------------------------------
+        translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.27f, 0.15f, 2.06f));
+        rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 1.8, 0.1));
+        model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+        drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.7291f, 0.596f, 0.403f);
+
+        translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.27f, 0.15f, 1.9f));
+        rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 1.8, 0.1));
+        model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+        drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.7291f, 0.596f, 0.403f);
+
+        //------------------------------- this is the hand part
+        translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.40f, 0.4f, 2.1f));
+        rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        rotateZMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 1.3, 0.1));
+        model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+        drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.7291f, 0.596f, 0.403f);
+
+        translateMatrix = glm::translate(identityMatrix, glm::vec3(-0.40f, 0.4f, 1.85f));
+        rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        rotateZMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.1, 1.3, 0.1));
+        model = alTogether * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+        drawCircle(circleVAO, toolVAO, lightingShader, model, false, 0.7291f, 0.596f, 0.403f);
+    }
+}
+
+
+void shootTheBike(Shader& lightingShaderWithTexture, glm::mat4 alTogether) {
+
+    lightingShaderWithTexture.use();
+    glm::mat4 identityMatrix = glm::mat4(1.0f); // make sure to initialize matrix to identity matrix first
+    glm::mat4 translateMatrix, rotateXMatrix, rotateYMatrix, rotateZMatrix, scaleMatrix, model;
+
+    if (shootAngle > 50) {
+        shootAngle = -200.0f;
+        shoot = true;
+        return;
+    }
+    else {
+        shootAngle += 20.0f;
+    }
+
+    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(shootAngle), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.01, 0.02, 0.6));
+    model = alTogether  * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+    stick->drawCubeWithTexture(lightingShaderWithTexture, model);
+   
+}
+
 // for curve
 
 
@@ -1783,29 +2606,60 @@ void processInput(GLFWwindow* window)
         glfwSetWindowShouldClose(window, true);
 
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-        camera.ProcessKeyboard(FORWARD, deltaTime + .0);
-        bikeTranslate_z -= deltaTime*2.5;
-        
+        speed += 0.01f;
+        if (speed > 10.0f) speed = 10.0f;
+
+        // --- for testing purpose
+        //camera.ProcessKeyboard(FORWARD, deltaTime*5.0);
+
     }
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-        camera.ProcessKeyboard(BACKWARD, deltaTime + 0.0);
-        bikeTranslate_z += deltaTime*2.5;
+        speed -= 0.2f;
+        if (speed < 0.0f) speed = 0.0f;
+        camera.ProcessKeyboard(BACKWARD, deltaTime * speed );
+        bikeTranslate_z += deltaTime*speed;
+
+        // ---- for testing purpose
+        //camera.ProcessKeyboard(BACKWARD, deltaTime * 5.0);
         
     }
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
         
-        bikeTranslate_x -= deltaTime*2.5;
-        if (bikeTranslate_x < -4.42) bikeTranslate_x = -4.42;
+        bikeTranslate_x -= deltaTime*1.5;
+        if (bikeTranslate_x < -1.90) bikeTranslate_x = -1.90;
         else {
-            camera.ProcessKeyboard(LEFT, deltaTime);
+            //camera.ProcessKeyboard(LEFT, deltaTime * 1.5);
         }
     }
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
         
-        bikeTranslate_x += deltaTime*2.5;
-        if (bikeTranslate_x > 4.6) bikeTranslate_x = 4.6;
+        bikeTranslate_x += deltaTime*1.5;
+        if (bikeTranslate_x > 1.90) bikeTranslate_x = 1.9;
         else {
-            camera.ProcessKeyboard(RIGHT, deltaTime);
+            //camera.ProcessKeyboard(RIGHT, deltaTime * 1.5);
+        }
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+        if (shoot) {
+            
+            shoot = false;
+          
+            for (auto& i : enemyInfo) {
+      /*          cout << i[0] << " " << bikeTranslate_x*deltaTime << endl;
+                cout << abs(abs(bikeTranslate_x) - abs(i[0])) << " " << abs(abs(bikeTranslate_z) - abs(i[1])) << endl;*/
+                if (abs(abs(bikeTranslate_x) - abs(i[0])) <= 3.0f && abs(abs(bikeTranslate_z) - abs(i[1])) <= 1.0f) {
+                    i[2] = 0.0f;
+                    i[3] = 0.0f;
+                    i[4] = 0.0f;
+                    i[5] = 0.0f;
+                }
+            }
+
+            //cout << idx << " " << mnx << " " << mnz << endl;
+            
+            
+            
         }
     }
 
@@ -1902,7 +2756,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             pointlight1.turnOff();
             pointlight2.turnOff();
             pointlight3.turnOff();
-           
+            day = false;
             pointLightOn = !pointLightOn;
         }
         else
@@ -1910,7 +2764,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             pointlight1.turnOn();
             pointlight2.turnOn();
             pointlight3.turnOn();
-           
+            day = true;
             pointLightOn = !pointLightOn;
         }
     }

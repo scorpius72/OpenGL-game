@@ -19,7 +19,7 @@ public:
     glm::vec3 ambient;
     glm::vec3 diffuse;
     glm::vec3 specular;
-    glm::vec3 spotpos = glm::vec3(1.0, -5.0, -10.0);
+    glm::vec3 spotpos = glm::vec3(0.0, -5.0, -50.0);
     float k_c;
     float k_l;
     float k_q;
