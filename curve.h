@@ -38,11 +38,11 @@ public:
     {
         this->cntrlPoints = tmp;
         this->fishVAO = hollowBezier(cntrlPoints.data(), ((unsigned int)cntrlPoints.size() / 3) - 1);
-        cout << cntrlPoints.size() << endl;
+     /*   cout << cntrlPoints.size() << endl;
         cout << coordinates.size() << endl;
         cout << normals.size() << endl;
         cout << indices.size() << endl;
-        cout << vertices.size() << endl;
+        cout << vertices.size() << endl;*/
     }
     ~Curve()
     {

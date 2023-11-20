@@ -64,15 +64,15 @@ in vec3 Normal;
 in vec2 TexCoords;
 
 uniform vec3 viewPos;
-uniform vec3 lookatpointofsopt[10];
+uniform vec3 lookatpointofsopt[20];
 uniform PointLight pointLights[10];
-uniform SpotLight spotLights[10];
+uniform SpotLight spotLights[110];
 uniform DirectionLight directionLights[10];
 uniform Material material;
 
 // function prototypes
 vec3 CalcPointLight(Material material, PointLight light, vec3 N, vec3 fragPos, vec3 V);
-vec3 CalcSpotLight(Material material, SpotLight light, vec3 N, vec3 fragPos, vec3 V);
+vec3 CalcSpotLight(Material material, SpotLight light, vec3 N, vec3 fragPos, vec3 V , vec3 look);
 vec3 CalcDirectLight(Material material, DirectionLight light, vec3 N, vec3 fragPos, vec3 V);
 
 vec3 spotPosition = vec3(0.0,-5.0,20.0);
@@ -93,9 +93,14 @@ void main()
     vec3 result = vec3(0.0 , 0.0 , 0.0);
     // point lights
     
-    result += CalcSpotLight(material, spotLights[0], N, FragPos, V);
+    result += CalcSpotLight(material, spotLights[1], N, FragPos, V , lookatpointofsopt[1]);
     result += CalcPointLight(material, pointLights[0], N, FragPos, V);
     result += CalcDirectLight(material, directionLights[0], N, FragPos, V);
+
+    for (int i = 4; i<18; i++){
+        result+= CalcSpotLight(material, spotLights[i], N, FragPos, V , lookatpointofsopt[i]);
+    }
+
     FragColor = vec4(result, 1.0);
 }
 
@@ -126,7 +131,7 @@ vec3 CalcPointLight(Material material, PointLight light, vec3 N, vec3 fragPos, v
 }
 
 // calculates the color when using a point light.
-vec3 CalcSpotLight(Material material, SpotLight light, vec3 N, vec3 fragPos, vec3 V)
+vec3 CalcSpotLight(Material material, SpotLight light, vec3 N, vec3 fragPos, vec3 V , vec3 look)
 {
     vec3 L = normalize(light.position - fragPos);
     vec3 R = reflect(-L, N);
@@ -141,7 +146,7 @@ vec3 CalcSpotLight(Material material, SpotLight light, vec3 N, vec3 fragPos, vec
     float attenuation = 0;
 
     float theta = cos(25.5);
-    vec3 V_l = -normalize(light.position-lookatpointofsopt[0]);
+    vec3 V_l = -normalize(light.position-look);
     vec3 V_o = normalize(fragPos-light.position);
 
     if(dot(V_l,V_o) >= theta){

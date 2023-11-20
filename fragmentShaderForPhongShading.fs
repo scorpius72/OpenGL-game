@@ -55,7 +55,7 @@ in vec3 Normal;
 
 uniform vec3 viewPos;
 uniform PointLight pointLights[10];
-uniform SpotLight spotLights[10];
+uniform SpotLight spotLights[20];
 uniform DirectionLight directionLights[10];
 uniform Material material;
 

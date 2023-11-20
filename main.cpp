@@ -117,7 +117,8 @@ PointLight pointlight1(
     1.0f,   //k_c
     0.09f,  //k_l
     0.032f, //k_q
-    1       // light number
+    1,       // light number
+    0.0, -5.0, -50.0 // spot pos
 );
 PointLight pointlight2(
 
@@ -144,6 +145,42 @@ PointLight pointlight3(
     100       // light number
 );
 
+PointLight spotLight[20];
+void getPositionSpotLight()
+{
+    int c = 1;
+    for (int i = 4; i < 18; i+=2) {
+        PointLight tmp1(
+
+            -4.5, 0.0, -(50.0) * c,  // position
+            0.5f, 0.5f, 0.5f,     // ambient
+            0.5f, 0.5f, 0.5f,      // diffuse
+            0.5f, 0.5f, 0.5f,          // specular
+            1.0f,   //k_c
+            0.09f,  //k_l
+            0.032f, //k_q
+            i,    // light number
+            -2.7, -5.0, -(50) * c
+        );
+        spotLight[i] = tmp1;
+
+        PointLight tmp2(
+
+            3.5, 0.0, -(50.0) * c,  // position
+            0.5f, 0.5f, 0.5f,     // ambient
+            0.5f, 0.5f, 0.5f,      // diffuse
+            0.5f, 0.5f, 0.5f,          // specular
+            1.0f,   //k_c
+            0.09f,  //k_l
+            0.032f, //k_q
+            i+1,    // light number
+            2.7, -5.0, -(50) * c
+        );
+        spotLight[i+1] = tmp2;
+        c++;
+    }
+}
+
 
 // light settings
 bool onOffPointToggle = true;
@@ -156,6 +193,8 @@ bool pointLightOn = true;
 bool personRide = true;
 bool IntroWaling = true;
 bool shoot = true;
+bool gameRunning = true;
+float speedAngle = 130;
 
 // timing
 float deltaTime = 0.0f;    // time between current frame and last frame
@@ -698,7 +737,7 @@ void setEnemyInfo() {
     for (int i = 0; i < 6; i++) {
         a[0] = x;
         a[1] = 0.0f; // z pos
-        a[2] = randomFloat(3, 10);
+        a[2] = randomFloat(2, 9);
         a[3] = randomFloat(0 , 1);
         a[4] = randomFloat(0 , 1);
         a[5] = randomFloat(0 , 1);
@@ -708,7 +747,7 @@ void setEnemyInfo() {
     
 }
 // this is for stick
-Cube* stick , *field;
+Cube* stick, * field, * speedMeter, * red;
 Sphere2* head_sphare , *day_sphare;
 
 vector < pair<int,int> > tree_pos;
@@ -1220,15 +1259,37 @@ int main()
     Cube field1 = Cube(diffMapfield, specMapfield, 32.0f, 0.0f, 0.0f, 1.0f, 1.0f);
     field = &field1;
 
+    // this is for game finished
+    diffuseMapPathroad = "Texture_img/game_finished.png";
+    specularMapPathroad = "Texture_img/game_finished.png";
+    unsigned int diffMapgameFinished = loadTexture(diffuseMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+    unsigned int specMapgameFinished = loadTexture(specularMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+    Cube gameFinished = Cube(diffMapgameFinished, specMapgameFinished, 32.0f, 0.0f, 0.0f, 1.0f, 1.0f);
 
 
+    // this is for speed meter
+    diffuseMapPathroad = "Texture_img/speed.png";
+    specularMapPathroad = "Texture_img/speed.png";
+    unsigned int diffMapspeed = loadTexture(diffuseMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+    unsigned int specMapgamespeed = loadTexture(specularMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+    Cube speed1 = Cube(diffMapspeed, specMapgamespeed, 32.0f, 0.0f, 0.0f, 1.0f, 1.0f);
 
+    speedMeter = &speed1;
+
+    // this is for red light
+    diffuseMapPathroad = "Texture_img/red.png";
+    specularMapPathroad = "Texture_img/red.png";
+    unsigned int diffMapred = loadTexture(diffuseMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+    unsigned int specMapred = loadTexture(specularMapPathroad.c_str(), GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+    Cube red1 = Cube(diffMapred, specMapred, 32.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+
+    red = &red1;
 
     // testing purpose -----------------------------
-    //camera.ProcessKeyboard(FORWARD, 700);
+    //camera.ProcessKeyboard(FORWARD, 900);
 
 
-
+    getPositionSpotLight();
 
 
 
@@ -1252,6 +1313,10 @@ int main()
 
         // render
         // ------
+
+        if (bikeTranslate_z < -910) {
+            gameRunning = false;
+        }
 
         if (day)
             glClearColor(0.7294117647f, 0.99215686274f, 1.0f, 1.0f);
@@ -1297,137 +1362,192 @@ int main()
         // point light 3
         pointlight3.setUpPointLight(lightingShaderWithTexture);
 
+        
+        for (int i = 4; i < 18; i++) {
+            spotLight[i].setUpPointLight(lightingShaderWithTexture);
+        }
+
+        
+
 
         // -------------------- this part is for testing ---------------   
+        //glm ::mat4 model1 = glm::mat4(1.0);
+        //translateMatrix = glm::translate(model, glm::vec3(3.5f, -4.5f, -50.0f));
+        ////cout << bikeTranslate_z << endl;
+        //rotateXMatrix = glm::rotate(identityMatrix, glm::radians(00.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        //rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        //rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        //scaleMatrix = glm::scale(identityMatrix, glm::vec3(1, 1, 1));
+        //model1 = translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+        //stick->drawCubeWithTexture(lightingShaderWithTexture, model1);
+
       /*  roadDraw(road, footPath, lightingShaderWithTexture, model);
         buildingDraw(building, lightingShaderWithTexture, model);
         lampDraw(lamp, lightingShaderWithTexture, model);*/
         
-        
+        if (gameRunning) {
+            //  ------------------------------------  main part start form here ----------------------
 
-        //  ------------------------------------  main part start form here ----------------------
-       
-        roadDraw(road, footPath, lightingShaderWithTexture, model);
-        buildingDraw(building, lightingShaderWithTexture, model);
-        lampDraw(lamp, lightingShaderWithTexture, model);
-        
-        
-
-        // --------------------- this part is for bike --------------------------------------//
-        lightingShader.use();
-        // point light 1
-        //pointlight1.setUpPointLight(lightingShader);
-        // point light 2
-        pointlight2.setUpPointLight(lightingShader);
-        // point light 3
-        pointlight3.setUpPointLight(lightingShader);
+            roadDraw(road, footPath, lightingShaderWithTexture, model);
+            buildingDraw(building, lightingShaderWithTexture, model);
+            lampDraw(lamp, lightingShaderWithTexture, model);
 
 
-        if (false) {
-            bikeTranslate_x = 0.0; bikeTranslate_y = 0.0; bikeTranslate_z = 0.0f;
 
-            if (intoCurrent_z < -20.0f) {
-                camera.ProcessKeyboard(BACKWARD, -intoCurrent_z/speed);
-                IntroWaling = false;
-                speed = 3.5f;
-                personRide = 1;
+            // --------------------- this part is for bike --------------------------------------//
+            lightingShader.use();
+            // point light 1
+            //pointlight1.setUpPointLight(lightingShader);
+            // point light 2
+            pointlight2.setUpPointLight(lightingShader);
+            // point light 3
+            pointlight3.setUpPointLight(lightingShader);
+
+
+            if (IntroWaling) {
+                bikeTranslate_x = 0.0; bikeTranslate_y = 0.0; bikeTranslate_z = 0.0f;
+
+                if (intoCurrent_z < -20.0f) {
+                    camera.ProcessKeyboard(BACKWARD, -intoCurrent_z / speed);
+                    IntroWaling = false;
+                    speed = 3.0f;
+                    personRide = 1;
+                }
+                else {
+
+                    personRide = 0;
+
+                    model = glm::mat4(1.0);
+                    translateMatrix = glm::translate(model, glm::vec3(0.0f, -2.5f, -35.0f));
+                    //cout << bikeTranslate_z << endl;
+                    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(00.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+                    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+                    scaleMatrix = glm::scale(identityMatrix, glm::vec3(2, 2, 2));
+                    model = translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+                    //cubeMoving(cubeVAO, lightingShader, model);
+                    bikeDraw(circleVAO, toolVAO, bikeCircleVAO, cubeVAO, lightingShader, lightingShaderWithTexture, model);
+
+                    camera.ProcessKeyboard(FORWARD, deltaTime);
+                    intoCurrent_z -= deltaTime * speed;
+
+
+                    model = glm::mat4(1.0);
+                    translateMatrix = glm::translate(model, glm::vec3(-4.0f, -4.0f, -10.0f + intoCurrent_z));
+                    //cout << bikeTranslate_x << endl;
+                    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(00.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+                    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+                    scaleMatrix = glm::scale(identityMatrix, glm::vec3(2.0, 2.0, 2.0));
+                    model = translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+                    personDraw(circleVAO, toolVAO, bikeCircleVAO, cubeVAO, lightingShader, model);
+
+                }
+
             }
             else {
 
-                personRide = 0;
+                if (!pointLightOn) {
+                    pointlight1.position = glm::vec3(bikeTranslate_x, bikeTranslate_y, bikeTranslate_z - 20.f);
+                    pointlight1.spotpos[1] = glm::vec3(bikeTranslate_x, bikeTranslate_y - 4.0f, bikeTranslate_z - 30.0f);
+                }
+                else {
+                    pointlight1.turnOff();
+                }
+                
 
+
+                // this is for shooting
+                if (!shoot) {
+                    model = glm::mat4(1.0);
+                    translateMatrix = glm::translate(model, glm::vec3(bikeTranslate_x, -0.7f, bikeTranslate_z));
+                    //cout << bikeTranslate_z << endl;
+                    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+                    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+                    scaleMatrix = glm::scale(identityMatrix, glm::vec3(1, 1, 1));
+                    model = translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+                    shootTheBike(lightingShaderWithTexture, model);
+                }
+
+
+                //    // this is for speed control of the bike
+
+                camera.ProcessKeyboard(FORWARD, deltaTime * speed);
+                bikeTranslate_z -= deltaTime * speed;
+
+                // this section is for speed showing
                 model = glm::mat4(1.0);
-                translateMatrix = glm::translate(model, glm::vec3( 0.0f, - 2.5f, - 35.0f));
-                //cout << bikeTranslate_z << endl;
-                rotateXMatrix = glm::rotate(identityMatrix, glm::radians(00.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+                lightingShaderWithTexture.use();
+                // for speed meter
+                translateMatrix = glm::translate(identityMatrix, glm::vec3(-3.7f, 1.7, bikeTranslate_z-2.0f));
+                rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
                 rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
                 rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-                scaleMatrix = glm::scale(identityMatrix, glm::vec3(2, 2, 2));
+                scaleMatrix = glm::scale(identityMatrix, glm::vec3(1.1, 1.1, .1));
+                model = model * translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+                speedMeter->drawCubeWithTexture(lightingShaderWithTexture, model);
+
+                //cout << speedAngle << endl;
+
+                //// this is for speed show
+                translateMatrix = glm::translate(identityMatrix, glm::vec3(-2.38f, 1.60, bikeTranslate_z));
+                rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+                rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                rotateZMatrix = glm::rotate(identityMatrix, glm::radians(speedAngle), glm::vec3(0.0f, 0.0f, 1.0f));
+                scaleMatrix = glm::scale(identityMatrix, glm::vec3(0.01, 0.2, 0.01));
+                model = translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+
+                //model = rotateXMatrix * rotateYMatrix * rotateZMatrix * model;
+
+                red->drawCubeWithTexture(lightingShaderWithTexture, model);
+
+                // end of speed showing
+
+                model = glm::mat4(1.0);
+                translateMatrix = glm::translate(model, glm::vec3(bikeTranslate_x - 2.0f, bikeTranslate_y - 1.5f, bikeTranslate_z - 3.0f));
+                //cout << bikeTranslate_z << endl;
+                rotateXMatrix = glm::rotate(identityMatrix, glm::radians(00.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+                rotateYMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+                scaleMatrix = glm::scale(identityMatrix, glm::vec3(1, 1, 1));
                 model = translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
 
                 //cubeMoving(cubeVAO, lightingShader, model);
                 bikeDraw(circleVAO, toolVAO, bikeCircleVAO, cubeVAO, lightingShader, lightingShaderWithTexture, model);
 
-                camera.ProcessKeyboard(FORWARD, deltaTime);
-                intoCurrent_z -= deltaTime * speed;
+                // this is for enemy vehicle
+                int ccc = 0;
+                for (auto& i : enemyInfo) {
 
-               
-                model = glm::mat4(1.0);
-                translateMatrix = glm::translate(model, glm::vec3(-4.0f, -4.0f, -10.0f + intoCurrent_z));
-                //cout << bikeTranslate_x << endl;
-                rotateXMatrix = glm::rotate(identityMatrix, glm::radians(00.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-                rotateYMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-                rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-                scaleMatrix = glm::scale(identityMatrix, glm::vec3(2.0, 2.0, 2.0));
-                model = translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+                    if (i[2] == 0.0) {
+                        //cout << bikeTranslate_x << " "<< i[0] << endl;
+                        if (i[0] < -1.93)
+                            i[0] = -4.0;
+                        else i[0] = -3.43 + 6 * .5 + 0.5f;
+                        //i[1] -= 5.0f;
+                    }
+                    i[1] -= i[2] * deltaTime;
+                    //cout << i[1] << endl;
+                    model = glm::mat4(1.0);
+                    translateMatrix = glm::translate(model, glm::vec3(i[0], -1.5f, i[1] - 3.0f));
+                    //cout << bikeTranslate_z << endl;
+                    rotateXMatrix = glm::rotate(identityMatrix, glm::radians(00.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+                    rotateYMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                    rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+                    scaleMatrix = glm::scale(identityMatrix, glm::vec3(1, 1, 1));
+                    model = translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
 
-                personDraw(circleVAO, toolVAO, bikeCircleVAO, cubeVAO, lightingShader, model);
-
-            }
-
-        }
-        else {
-
-            // this is for shooting
-            if (!shoot) {
-                model = glm::mat4(1.0);
-                translateMatrix = glm::translate(model, glm::vec3(bikeTranslate_x, -0.7f, bikeTranslate_z));
-                //cout << bikeTranslate_z << endl;
-                rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-                rotateYMatrix = glm::rotate(identityMatrix, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-                rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-                scaleMatrix = glm::scale(identityMatrix, glm::vec3(1, 1, 1));
-                model = translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
-
-                shootTheBike(lightingShaderWithTexture, model);
-            }
-            
-
-        //    // this is for speed control of the bike
-
-            camera.ProcessKeyboard(FORWARD, deltaTime * speed);
-            bikeTranslate_z -= deltaTime * speed;
-
-            model = glm::mat4(1.0);
-            translateMatrix = glm::translate(model, glm::vec3(bikeTranslate_x - 2.0f, bikeTranslate_y - 1.5f, bikeTranslate_z - 3.0f));
-            //cout << bikeTranslate_z << endl;
-            rotateXMatrix = glm::rotate(identityMatrix, glm::radians(00.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-            rotateYMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-            rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-            scaleMatrix = glm::scale(identityMatrix, glm::vec3(1, 1, 1));
-            model = translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
-
-            //cubeMoving(cubeVAO, lightingShader, model);
-            bikeDraw(circleVAO, toolVAO, bikeCircleVAO, cubeVAO, lightingShader, lightingShaderWithTexture, model);
-
-            // this is for enemy vehicle
-            int ccc = 0;
-            for (auto &i : enemyInfo) {
-                
-                if (i[2] == 0.0) {
-                    //cout << bikeTranslate_x << " "<< i[0] << endl;
-                    if (i[0]<-1.93)
-                        i[0] = -4.0;
-                    else i[0] = -3.43 + 6*.5 + 0.5f;
-                    //i[1] -= 5.0f;
+                    //cubeMoving(cubeVAO, lightingShader, model);
+                    bikeDrawEnemy(circleVAO, toolVAO, bikeCircleVAO, cubeVAO, lightingShader, lightingShaderWithTexture, model, ccc++);
                 }
-                i[1] -= i[2] * deltaTime;
-                //cout << i[1] << endl;
-                model = glm::mat4(1.0);
-                translateMatrix = glm::translate(model, glm::vec3(i[0], - 1.5f, i[1] - 3.0f));
-                //cout << bikeTranslate_z << endl;
-                rotateXMatrix = glm::rotate(identityMatrix, glm::radians(00.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-                rotateYMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-                rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-                scaleMatrix = glm::scale(identityMatrix, glm::vec3(1, 1, 1));
-                model = translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
 
-                //cubeMoving(cubeVAO, lightingShader, model);
-                bikeDrawEnemy(circleVAO, toolVAO, bikeCircleVAO, cubeVAO, lightingShader, lightingShaderWithTexture, model , ccc++);
             }
-           
-        }
-           
+
             translateMatrix = glm::translate(identityMatrix, glm::vec3(0.0f, 0.0f, -350.0f));
             rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
             rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -1437,7 +1557,7 @@ int main()
 
             fieldDraw(lightingShaderWithTexture, model);
 
-            translateMatrix = glm::translate(identityMatrix, glm::vec3(0.0f, 0.0f, -700.0f));
+            translateMatrix = glm::translate(identityMatrix, glm::vec3(0.0f, 0.0f, -690.0f));
             rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
             rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
             rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
@@ -1447,9 +1567,20 @@ int main()
             buildingDraw(building, lightingShaderWithTexture, model);
             lampDraw(lamp, lightingShaderWithTexture, model);
 
-        // -------------------------  main function call part end here ---------------------------------
+            // -------------------------  main function call part end here ---------------------------------
+
+        }
         
-    
+
+        translateMatrix = glm::translate(identityMatrix, glm::vec3(-1.5, 0.0, -910));
+        rotateXMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        rotateYMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        rotateZMatrix = glm::rotate(identityMatrix, glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        scaleMatrix = glm::scale(identityMatrix, glm::vec3(3, 1, 1));
+        model =  translateMatrix * rotateXMatrix * rotateYMatrix * rotateZMatrix * scaleMatrix;
+        lightingShaderWithTexture.use();
+        gameFinished.drawCubeWithTexture(lightingShaderWithTexture, model);
+
         //drawCube(cubeVAO, lightingShader, model);
         /*drawCircle(circleVAO , toolVAO, lightingShader, model , true);
         drawBikeCircle(bikeCircleVAO, lightingShader, model);*/
@@ -1768,10 +1899,14 @@ void bikeDraw(unsigned int& circleVAO, unsigned int& toolVAO, unsigned int& bike
     scale = glm::scale(model, glm::vec3(0.5, 0.5, 0.5));
     model = translate * scale;*/
 
+
+
     // ----------------------------------- first wheel -------------------------------//
     // first circle
     glm::mat4 identityMatrix = glm::mat4(1.0f); // make sure to initialize matrix to identity matrix first
     glm::mat4 translateMatrix, rotateXMatrix, rotateYMatrix, rotateZMatrix, scaleMatrix , model;
+
+   
 
     translateMatrix = glm::translate(identityMatrix, glm::vec3(0.5f, -0.2, 2.0f));
     rotateXMatrix = glm::rotate(identityMatrix, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
@@ -2608,7 +2743,9 @@ void processInput(GLFWwindow* window)
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
         speed += 0.01f;
         if (speed > 10.0f) speed = 10.0f;
-
+        else {
+            speedAngle -= (260 * 1.0) / 1000;
+        }
         // --- for testing purpose
         //camera.ProcessKeyboard(FORWARD, deltaTime*5.0);
 
@@ -2616,6 +2753,9 @@ void processInput(GLFWwindow* window)
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
         speed -= 0.2f;
         if (speed < 0.0f) speed = 0.0f;
+        else {
+            speedAngle += (260 * 1.0) / 500;
+        }
         camera.ProcessKeyboard(BACKWARD, deltaTime * speed );
         bikeTranslate_z += deltaTime*speed;
 
@@ -2753,19 +2893,40 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     {
         if (pointLightOn)
         {
-            pointlight1.turnOff();
+            //pointlight1.turnOff();
             pointlight2.turnOff();
             pointlight3.turnOff();
             day = false;
             pointLightOn = !pointLightOn;
+
+            for (int i = 4; i <18; i++) {
+                spotLight[i].turnOn();
+                pointlight1.turnOn();
+            }
+            //spotLight[20].turnOn();
+
         }
         else
         {
-            pointlight1.turnOn();
+            //pointlight1.turnOn();
             pointlight2.turnOn();
             pointlight3.turnOn();
             day = true;
             pointLightOn = !pointLightOn;
+
+            for (int i = 4; i < 18; i++) {
+                spotLight[i].turnOff();
+                pointlight1.turnOff();
+            }
+            //spotLight[20].turnOff();
+        }
+    }
+
+    if (key == GLFW_KEY_2 && action == GLFW_PRESS)
+    {
+        //cout << "Yes" << endl;
+        for (int i = 4; i < 18; i++) {
+            spotLight[i].turnOff();
         }
     }
 
